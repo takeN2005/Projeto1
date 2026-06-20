@@ -1,13 +1,30 @@
 package view;
 
 import model.BaseDeDados;
+import model.Estadio;
 import model.Jogo;
 import model.Selecao;
 
 import javax.swing.*;
+import javax.swing.border.*;
 import java.awt.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.List;
 
 public class PainelGrupos extends JPanel {
+
+    private static final Color BG_DARK  = new Color(245, 242, 238);
+    private static final Color BG_CARD  = new Color(255, 255, 255);
+    private static final Color GOLD     = new Color(62, 39, 35);
+    private static final Color TEXT_PRI = new Color(50, 40, 38);
+    private static final Color TEXT_SEC = new Color(130, 115, 108);
+    private static final Color BORDER   = new Color(220, 210, 200);
+
+    private static final String[] LETRAS = {"A","B","C","D","E","F","G","H"};
+
     private JComboBox<String> comboGrupos;
     private DefaultListModel<Selecao> modeloSemGrupo;
     private DefaultListModel<Selecao> modeloNoGrupo;
@@ -18,48 +35,56 @@ public class PainelGrupos extends JPanel {
     public PainelGrupos() {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-        setBackground(new Color(240, 240, 240));
+        setBackground(BG_DARK);
 
-        JPanel painelTopo = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JPanel painelTopo = new JPanel(new BorderLayout());
         painelTopo.setOpaque(false);
-        painelTopo.add(new JLabel("Selecionar Grupo:"));
-        String[] grupos = {"Grupo A", "Grupo B", "Grupo C", "Grupo D", "Grupo E", "Grupo F", "Grupo G", "Grupo H"};
-        comboGrupos = new JComboBox<>(grupos);
-        painelTopo.add(comboGrupos);
+
+        JPanel esquerda = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        esquerda.setOpaque(false);
+        JLabel lblSelGrupo = new JLabel("Grupo:");
+        lblSelGrupo.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lblSelGrupo.setForeground(TEXT_SEC);
+        String[] grupos = {"Grupo A","Grupo B","Grupo C","Grupo D","Grupo E","Grupo F","Grupo G","Grupo H"};
+        comboGrupos = estilizarCombo(new JComboBox<>(grupos));
+        esquerda.add(lblSelGrupo);
+        esquerda.add(comboGrupos);
+        painelTopo.add(esquerda, BorderLayout.WEST);
+
+        JButton btnAutoDistribuir = criarBotao("Auto-Distribuir Grupos", new Color(120, 80, 160));
+        btnAutoDistribuir.addActionListener(e -> autoDistribuirGrupos());
+        painelTopo.add(btnAutoDistribuir, BorderLayout.EAST);
         add(painelTopo, BorderLayout.NORTH);
 
         JPanel painelListas = new JPanel(new GridLayout(1, 3, 10, 0));
         painelListas.setOpaque(false);
 
         modeloSemGrupo = new DefaultListModel<>();
-        listaSemGrupo = new JList<>(modeloSemGrupo);
-        JScrollPane scrollEsq = new JScrollPane(listaSemGrupo);
-        scrollEsq.setBorder(BorderFactory.createTitledBorder("Seleções sem Grupo"));
+        listaSemGrupo  = estilizarLista(new JList<>(modeloSemGrupo));
+        JScrollPane scrollEsq = estilizarScroll(new JScrollPane(listaSemGrupo), "Seleções sem Grupo");
 
         modeloNoGrupo = new DefaultListModel<>();
-        listaNoGrupo = new JList<>(modeloNoGrupo);
-        JScrollPane scrollDir = new JScrollPane(listaNoGrupo);
-        scrollDir.setBorder(BorderFactory.createTitledBorder("Seleções no Grupo Atual"));
+        listaNoGrupo  = estilizarLista(new JList<>(modeloNoGrupo));
+        JScrollPane scrollDir = estilizarScroll(new JScrollPane(listaNoGrupo), "Seleções no Grupo");
 
-        JPanel painelBotoesTransferir = new JPanel(new GridBagLayout());
-        painelBotoesTransferir.setOpaque(false);
-        JButton btnAdd = criarBotaoPequeno(">>", new Color(52, 73, 94));
-        JButton btnRemover = criarBotaoPequeno("<<", new Color(52, 73, 94));
-
+        JPanel painelBtns = new JPanel(new GridBagLayout());
+        painelBtns.setOpaque(false);
+        JButton btnAdd     = criarBotaoPequeno(">>", new Color(41, 98, 185));
+        JButton btnRemover = criarBotaoPequeno("<<", new Color(90, 45, 45));
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0; gbc.gridy = 0; gbc.insets = new Insets(5, 0, 5, 0);
-        painelBotoesTransferir.add(btnAdd, gbc);
+        painelBtns.add(btnAdd, gbc);
         gbc.gridy = 1;
-        painelBotoesTransferir.add(btnRemover, gbc);
+        painelBtns.add(btnRemover, gbc);
 
         painelListas.add(scrollEsq);
-        painelListas.add(painelBotoesTransferir);
+        painelListas.add(painelBtns);
         painelListas.add(scrollDir);
         add(painelListas, BorderLayout.CENTER);
 
         JPanel painelFundo = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         painelFundo.setOpaque(false);
-        btnGerarJogos = criarBotaoEstilizado("Gerar Jogos do Grupo (Requer 4 Seleções)", new Color(230, 126, 34));
+        btnGerarJogos = criarBotao("Gerar Jogos do Grupo (requer 4 seleções)", new Color(160, 110, 20));
         btnGerarJogos.setEnabled(false);
         painelFundo.add(btnGerarJogos);
         add(painelFundo, BorderLayout.SOUTH);
@@ -85,7 +110,6 @@ public class PainelGrupos extends JPanel {
         });
 
         btnGerarJogos.addActionListener(e -> gerarJogosAutomaticos());
-
         carregarListas();
     }
 
@@ -93,41 +117,61 @@ public class PainelGrupos extends JPanel {
         modeloSemGrupo.clear();
         modeloNoGrupo.clear();
         String grupoAtual = (String) comboGrupos.getSelectedItem();
-
         for (Selecao s : BaseDeDados.selecoes) {
-            if (s.getGrupo().equals("Nenhum")) {
-                modeloSemGrupo.addElement(s);
-            } else if (s.getGrupo().equals(grupoAtual)) {
-                modeloNoGrupo.addElement(s);
-            }
+            if (s.getGrupo().equals("Nenhum"))         modeloSemGrupo.addElement(s);
+            else if (s.getGrupo().equals(grupoAtual))  modeloNoGrupo.addElement(s);
         }
-
-        // Botão só ativo se houver 4 seleções E jogos ainda não gerados
         btnGerarJogos.setEnabled(modeloNoGrupo.getSize() == 4 && !jogosJaGerados(grupoAtual));
     }
 
-    private boolean jogosJaGerados(String grupoAtual) {
-        for (Jogo j : BaseDeDados.jogos) {
-            if (j.getEquipaCasa().getGrupo().equals(grupoAtual)) {
-                return true;
+    private void autoDistribuirGrupos() {
+        List<Selecao> livres = new ArrayList<>();
+        for (Selecao s : BaseDeDados.selecoes)
+            if (s.getGrupo().equals("Nenhum")) livres.add(s);
+
+        if (livres.size() < 4) {
+            JOptionPane.showMessageDialog(this,
+                    "Precisas de pelo menos 4 seleções sem grupo para distribuir.",
+                    "Aviso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Collections.shuffle(livres);
+        int numGrupos = Math.min(livres.size() / 4, LETRAS.length);
+        int usadas = 0;
+
+        for (int g = 0; g < numGrupos; g++) {
+            for (int i = 0; i < 4; i++) {
+                livres.get(usadas).setGrupo("Grupo " + LETRAS[g]);
+                usadas++;
             }
         }
+
+        BaseDeDados.salvarDados();
+        carregarListas();
+
+        int sobraram = livres.size() - usadas;
+        String msg = numGrupos + " grupo(s) formado(s) com sucesso!"
+                + (sobraram > 0 ? "\n" + sobraram + " seleção(ões) ficaram sem grupo (não chegavam para mais um grupo completo)." : "");
+        JOptionPane.showMessageDialog(this, msg);
+    }
+
+    private boolean jogosJaGerados(String grupo) {
+        for (Jogo j : BaseDeDados.jogos)
+            if (j.getEquipaCasa().getGrupo().equals(grupo)) return true;
         return false;
     }
 
     private void gerarJogosAutomaticos() {
         if (BaseDeDados.estadios.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Regista pelo menos um Estádio primeiro!", "Aviso", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "Regista pelo menos um estádio primeiro!", "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
-
         String grupoAtual = (String) comboGrupos.getSelectedItem();
-
-        // Verificação extra de segurança
         if (jogosJaGerados(grupoAtual)) {
             JOptionPane.showMessageDialog(this,
-                    "Os jogos do " + grupoAtual + " já foram gerados!",
-                    "Aviso", JOptionPane.WARNING_MESSAGE);
+                    "Os jogos do " + grupoAtual + " já foram gerados!", "Aviso", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -136,25 +180,62 @@ public class PainelGrupos extends JPanel {
         Selecao s3 = modeloNoGrupo.getElementAt(2);
         Selecao s4 = modeloNoGrupo.getElementAt(3);
 
+        int grupoIdx = grupoAtual.charAt(grupoAtual.length() - 1) - 'A'; // "Grupo A" -> 0
         int numEstadios = BaseDeDados.estadios.size();
+        LocalDate base = LocalDate.now().plusDays(7);
+        int[] horas = {16, 20};
 
-        String est1 = BaseDeDados.estadios.get(0 % numEstadios).getNome();
-        String est2 = BaseDeDados.estadios.get(1 % numEstadios).getNome();
-        String est3 = BaseDeDados.estadios.get(2 % numEstadios).getNome();
-        String est4 = BaseDeDados.estadios.get(3 % numEstadios).getNome();
-        String est5 = BaseDeDados.estadios.get(4 % numEstadios).getNome();
-        String est6 = BaseDeDados.estadios.get(5 % numEstadios).getNome();
+        // Ronda 1: s1-s2, s3-s4 | Ronda 2: s1-s3, s2-s4 | Ronda 3: s1-s4, s2-s3
+        Selecao[][] rondas = {
+                {s1, s2, s3, s4},
+                {s1, s3, s2, s4},
+                {s1, s4, s2, s3}
+        };
 
-        BaseDeDados.jogos.add(new Jogo("A Definir", s1, s2, est1));
-        BaseDeDados.jogos.add(new Jogo("A Definir", s3, s4, est2));
-        BaseDeDados.jogos.add(new Jogo("A Definir", s1, s3, est3));
-        BaseDeDados.jogos.add(new Jogo("A Definir", s2, s4, est4));
-        BaseDeDados.jogos.add(new Jogo("A Definir", s1, s4, est5));
-        BaseDeDados.jogos.add(new Jogo("A Definir", s2, s3, est6));
+        int contadorEstadio = 0;
+        for (int ronda = 0; ronda < 3; ronda++) {
+            LocalDate dia = base.plusDays((long) ronda * 8 + grupoIdx);
+            for (int jogoNaRonda = 0; jogoNaRonda < 2; jogoNaRonda++) {
+                Selecao casa = rondas[ronda][jogoNaRonda * 2];
+                Selecao fora = rondas[ronda][jogoNaRonda * 2 + 1];
+                LocalDateTime dataHora = dia.atTime(horas[jogoNaRonda], 0);
+                String dataStr = dataHora.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+                Estadio estadio = BaseDeDados.estadios.get(contadorEstadio % numEstadios);
+                contadorEstadio++;
+                BaseDeDados.jogos.add(new Jogo(dataStr, casa, fora, estadio.getNome()));
+            }
+        }
 
         BaseDeDados.salvarDados();
-        JOptionPane.showMessageDialog(this, "6 jogos do " + grupoAtual + " gerados com sucesso!");
+        JOptionPane.showMessageDialog(this, "6 jogos do " + grupoAtual + " gerados com datas e horários!");
         carregarListas();
+    }
+
+    private <T> JList<T> estilizarLista(JList<T> lista) {
+        lista.setBackground(BG_CARD);
+        lista.setForeground(TEXT_PRI);
+        lista.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        lista.setSelectionBackground(new Color(60, 90, 150));
+        lista.setSelectionForeground(Color.WHITE);
+        lista.setFixedCellHeight(32);
+        return lista;
+    }
+
+    private JScrollPane estilizarScroll(JScrollPane scroll, String titulo) {
+        scroll.setBorder(BorderFactory.createTitledBorder(
+                BorderFactory.createLineBorder(BORDER), titulo,
+                TitledBorder.LEFT, TitledBorder.TOP,
+                new Font("Segoe UI", Font.BOLD, 12), TEXT_SEC));
+        scroll.getViewport().setBackground(BG_CARD);
+        scroll.setBackground(BG_DARK);
+        return scroll;
+    }
+
+    private <T> JComboBox<T> estilizarCombo(JComboBox<T> cb) {
+        cb.setBackground(BG_CARD);
+        cb.setForeground(TEXT_PRI);
+        cb.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        return cb;
     }
 
     private JButton criarBotaoPequeno(String texto, Color cor) {
@@ -163,19 +244,23 @@ public class PainelGrupos extends JPanel {
         btn.setForeground(Color.WHITE);
         btn.setBackground(cor);
         btn.setFocusPainted(false);
-        btn.setPreferredSize(new Dimension(60, 30));
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(60, 32));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         return btn;
     }
 
-    private JButton criarBotaoEstilizado(String texto, Color cor) {
+    private JButton criarBotao(String texto, Color cor) {
         JButton btn = new JButton(texto);
         btn.setFont(new Font("Segoe UI", Font.BOLD, 13));
         btn.setForeground(Color.WHITE);
         btn.setBackground(cor);
         btn.setFocusPainted(false);
-        btn.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setBorder(BorderFactory.createEmptyBorder(10, 16, 10, 16));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent e) { btn.setBackground(cor.brighter()); }
+            public void mouseExited(java.awt.event.MouseEvent e)  { btn.setBackground(cor); }
+        });
         return btn;
     }
 }
